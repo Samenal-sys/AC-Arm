@@ -1,4 +1,4 @@
-name: build arm linux binaries
+lname: build arm linux binaries
 
 on:
   workflow_dispatch:
@@ -15,9 +15,6 @@ jobs:
           - arch: armhf
             triplet: arm-linux-gnueabihf
             
-    container:
-      image: debian:bullseye
-    
     steps:
       - uses: actions/checkout@v4
       
@@ -26,9 +23,9 @@ jobs:
 
       - name: install dependencies
         run: |
-          dpkg --add-architecture ${{ matrix.arch }}
-          apt-get update
-          apt-get install -y gcc-${{ matrix.triplet }} g++-${{ matrix.triplet }} make pkg-config \
+          sudo dpkg --add-architecture ${{ matrix.arch }}
+          sudo apt-get update
+          sudo apt-get install -y gcc-${{ matrix.triplet }} g++-${{ matrix.triplet }} make pkg-config \
             libsdl2-dev:${{ matrix.arch }} libsdl2-image-dev:${{ matrix.arch }} zlib1g-dev:${{ matrix.arch }} \
             libogg-dev:${{ matrix.arch }} libvorbis-dev:${{ matrix.arch }} libopenal-dev:${{ matrix.arch }} libcurl4:${{ matrix.arch }}
 
