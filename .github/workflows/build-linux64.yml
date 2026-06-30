@@ -19,10 +19,10 @@ jobs:
       image: debian:bullseye
     
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: setup qemu
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-qemu-action@v3
 
       - name: install dependencies
         run: |
@@ -60,7 +60,7 @@ jobs:
           echo "you need to chmod 750 linux_${{ matrix.arch }}_*" > dist/info-make-executable.txt
         
       - name: upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: arm-linux-binaries-${{ matrix.arch }}
           path: dist
