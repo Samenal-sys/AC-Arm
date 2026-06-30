@@ -5,10 +5,19 @@ on:
   
 jobs:
   arm-linux:
-    name: build
+    name: build-${{ matrix.arch }}
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - arch: arm64
+            triplet: aarch64-linux-gnu
+          - arch: armhf
+            triplet: arm-linux-gnueabihf
+            
     container:
-      image: debian:bullseye # Using a standard Debian image
+      image: debian:bullseye
+    
     steps:
       - uses: actions/checkout@v3
       
@@ -17,11 +26,11 @@ jobs:
 
       - name: install dependencies
         run: |
-          dpkg --add-architecture arm64
+          dpkg --add-architecture ${{ matrix.arch }}
           apt-get update
-          apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu make \
-            libsdl2-dev:arm64 libsdl2-image-dev:arm64 zlib1g-dev:arm64 \
-            libogg-dev:arm64 libvorbis-dev:arm64 libopenal-dev:arm64 libcurl4:arm64
+          apt-get install -y gcc-${{ matrix.triplet }} g++-${{ matrix.triplet }} make pkg-config \
+            libsdl2-dev:${{ matrix.arch }} libsdl2-image-dev:${{ matrix.arch }} zlib1g-dev:${{ matrix.arch }} \
+            libogg-dev:${{ matrix.arch }} libvorbis-dev:${{ matrix.arch }} libopenal-dev:${{ matrix.arch }} libcurl4:${{ matrix.arch }}
 
       - name: prepare production build
         run: sed -i 's@//#define PRODUCTION@#define PRODUCTION@' source/src/cube.h
@@ -29,22 +38,30 @@ jobs:
       - name: make
         run: |
           cd source/src
-          # Ensure make uses the cross-compiler
           make clean
-          make CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++
+          
+          # Point pkg-config to the correct multiarch directories so it finds the arm libraries
+          export PKG_CONFIG_PATH=/usr/lib/${{ matrix.triplet }}/pkgconfig:/usr/share/pkgconfig
+          
+          # Force make to use the cross-compiler tools
+          make CC=${{ matrix.triplet }}-gcc \
+               CXX=${{ matrix.triplet }}-g++ \
+               AR=${{ matrix.triplet }}-ar \
+               RANLIB=${{ matrix.triplet }}-ranlib
+               
           make install
           cd ../..
         
       - name: prepare artifact
         run: |
           mkdir dist
-          cp bin_unix/native_client dist/linux_arm64_client
-          cp bin_unix/native_server dist/linux_arm64_server
-          echo "you need to chmod 750 linux_arm64_*" > dist/info-make-executable.txt
+          cp bin_unix/native_client dist/linux_${{ matrix.arch }}_client || echo "No client binary"
+          cp bin_unix/native_server dist/linux_${{ matrix.arch }}_server || echo "No server binary"
+          echo "you need to chmod 750 linux_${{ matrix.arch }}_*" > dist/info-make-executable.txt
         
       - name: upload artifact
         uses: actions/upload-artifact@v3
         with:
-          name: arm-linux-binaries
+          name: arm-linux-binaries-${{ matrix.arch }}
           path: dist
           
