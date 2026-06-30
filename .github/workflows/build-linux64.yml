@@ -1,42 +1,50 @@
-name: build linux64 binaries
+name: build arm linux binaries
 
 on:
   workflow_dispatch:
   
 jobs:
-  linux64:
+  arm-linux:
     name: build
     runs-on: ubuntu-latest
+    container:
+      image: debian:bullseye # Using a standard Debian image
     steps:
       - uses: actions/checkout@v3
       
-      - name: setup libraries
-        run: sudo apt install libsdl2-dev libsdl2-image-dev zlib1g-dev libogg-dev libvorbis-dev libopenal-dev libcurl4
-        shell: bash
+      - name: setup qemu
+        uses: docker/setup-qemu-action@v2
+
+      - name: install dependencies
+        run: |
+          dpkg --add-architecture arm64
+          apt-get update
+          apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu make \
+            libsdl2-dev:arm64 libsdl2-image-dev:arm64 zlib1g-dev:arm64 \
+            libogg-dev:arm64 libvorbis-dev:arm64 libopenal-dev:arm64 libcurl4:arm64
 
       - name: prepare production build
-        run: sed 's@//#define PRODUCTION@#define PRODUCTION@' source/src/cube.h
-        shell: bash
+        run: sed -i 's@//#define PRODUCTION@#define PRODUCTION@' source/src/cube.h
         
       - name: make
         run: |
           cd source/src
+          # Ensure make uses the cross-compiler
           make clean
-          make
+          make CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++
           make install
           cd ../..
-        shell: bash
         
       - name: prepare artifact
         run: |
           mkdir dist
-          cp bin_unix/native_client dist/linux_64_client
-          cp bin_unix/native_server dist/linux_64_server
-          echo "you need to chmod 750 linux_64_*" > dist/info-make-executable.txt
-        shell: bash
+          cp bin_unix/native_client dist/linux_arm64_client
+          cp bin_unix/native_server dist/linux_arm64_server
+          echo "you need to chmod 750 linux_arm64_*" > dist/info-make-executable.txt
         
       - name: upload artifact
         uses: actions/upload-artifact@v3
         with:
-          name: linux64-binaries
+          name: arm-linux-binaries
           path: dist
+          
