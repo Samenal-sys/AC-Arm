@@ -1,4 +1,4 @@
-lname: build arm linux binaries
+name: build arm linux binaries
 
 on:
   workflow_dispatch:
