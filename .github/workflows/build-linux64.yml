@@ -15,30 +15,28 @@ jobs:
           - arch: armhf
             triplet: arm-linux-gnueabihf
             
+    container:
+      image: debian:bullseye
+    
     steps:
+      # 1. Setup networking/git so checkout runs smoothly inside the container
+      - name: setup container prerequisites
+        run: |
+          apt-get update
+          apt-get install -y git ca-certificates
+          git config --global --add safe.directory '*'
+
       - uses: actions/checkout@v4
-      
-      - name: setup qemu
-        uses: docker/setup-qemu-action@v3
 
       - name: install dependencies
         run: |
-          sudo dpkg --add-architecture ${{ matrix.arch }}
+          dpkg --add-architecture ${{ matrix.arch }}
+          apt-get update
           
-          # 1. Scope standard repos to amd64 only so they don't break searching for arm
-          sudo sed -i 's/deb http/deb [arch=amd64] http/g' /etc/apt/sources.list
-          
-          # 2. Add the official Ubuntu Ports repos specifically for our target ARM architecture
-          SUITE=$(lsb_release -cs)
-          echo "deb [arch=${{ matrix.arch }}] http://ports.ubuntu.com/ubuntu-ports $SUITE main universe restricted multiverse" | sudo tee /etc/apt/sources.list.d/arm-ports.list
-          echo "deb [arch=${{ matrix.arch }}] http://ports.ubuntu.com/ubuntu-ports $SUITE-updates main universe restricted multiverse" | sudo tee -a /etc/apt/sources.list.d/arm-ports.list
-          echo "deb [arch=${{ matrix.arch }}] http://ports.ubuntu.com/ubuntu-ports $SUITE-security main universe restricted multiverse" | sudo tee -a /etc/apt/sources.list.d/arm-ports.list
-          
-          # 3. Update and install cross-compile libraries safely
-          sudo apt-get update
-          sudo apt-get install -y gcc-${{ matrix.triplet }} g++-${{ matrix.triplet }} make pkg-config \
+          # 2. Replaced libcurl4 with libcurl4-openssl-dev to ensure C++ headers exist
+          apt-get install -y gcc-${{ matrix.triplet }} g++-${{ matrix.triplet }} make pkg-config \
             libsdl2-dev:${{ matrix.arch }} libsdl2-image-dev:${{ matrix.arch }} zlib1g-dev:${{ matrix.arch }} \
-            libogg-dev:${{ matrix.arch }} libvorbis-dev:${{ matrix.arch }} libopenal-dev:${{ matrix.arch }} libcurl4:${{ matrix.arch }}
+            libogg-dev:${{ matrix.arch }} libvorbis-dev:${{ matrix.arch }} libopenal-dev:${{ matrix.arch }} libcurl4-openssl-dev:${{ matrix.arch }}
 
       - name: prepare production build
         run: sed -i 's@//#define PRODUCTION@#define PRODUCTION@' source/src/cube.h
@@ -48,23 +46,22 @@ jobs:
           cd source/src
           make clean
           
-          # Point pkg-config to the correct multiarch directories so it finds the arm libraries
           export PKG_CONFIG_PATH=/usr/lib/${{ matrix.triplet }}/pkgconfig:/usr/share/pkgconfig
           
-          # Force make to use the cross-compiler tools
+          # 3. Forced all compiler and pkg-config tools to strictly use the multiarch triplet
           make CC=${{ matrix.triplet }}-gcc \
                CXX=${{ matrix.triplet }}-g++ \
                AR=${{ matrix.triplet }}-ar \
-               RANLIB=${{ matrix.triplet }}-ranlib
-               
-          make install
+               RANLIB=${{ matrix.triplet }}-ranlib \
+               PKG_CONFIG=${{ matrix.triplet }}-pkg-config \
+               install
           cd ../..
         
       - name: prepare artifact
         run: |
           mkdir dist
-          cp bin_unix/native_client dist/linux_${{ matrix.arch }}_client || echo "No client binary"
-          cp bin_unix/native_server dist/linux_${{ matrix.arch }}_server || echo "No server binary"
+          cp bin_unix/native_client dist/linux_${{ matrix.arch }}_client || echo "No client binary generated"
+          cp bin_unix/native_server dist/linux_${{ matrix.arch }}_server || echo "No server binary generated"
           echo "you need to chmod 750 linux_${{ matrix.arch }}_*" > dist/info-make-executable.txt
         
       - name: upload artifact
