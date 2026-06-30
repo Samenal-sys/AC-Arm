@@ -24,6 +24,17 @@ jobs:
       - name: install dependencies
         run: |
           sudo dpkg --add-architecture ${{ matrix.arch }}
+          
+          # 1. Scope standard repos to amd64 only so they don't break searching for arm
+          sudo sed -i 's/deb http/deb [arch=amd64] http/g' /etc/apt/sources.list
+          
+          # 2. Add the official Ubuntu Ports repos specifically for our target ARM architecture
+          SUITE=$(lsb_release -cs)
+          echo "deb [arch=${{ matrix.arch }}] http://ports.ubuntu.com/ubuntu-ports $SUITE main universe restricted multiverse" | sudo tee /etc/apt/sources.list.d/arm-ports.list
+          echo "deb [arch=${{ matrix.arch }}] http://ports.ubuntu.com/ubuntu-ports $SUITE-updates main universe restricted multiverse" | sudo tee -a /etc/apt/sources.list.d/arm-ports.list
+          echo "deb [arch=${{ matrix.arch }}] http://ports.ubuntu.com/ubuntu-ports $SUITE-security main universe restricted multiverse" | sudo tee -a /etc/apt/sources.list.d/arm-ports.list
+          
+          # 3. Update and install cross-compile libraries safely
           sudo apt-get update
           sudo apt-get install -y gcc-${{ matrix.triplet }} g++-${{ matrix.triplet }} make pkg-config \
             libsdl2-dev:${{ matrix.arch }} libsdl2-image-dev:${{ matrix.arch }} zlib1g-dev:${{ matrix.arch }} \
